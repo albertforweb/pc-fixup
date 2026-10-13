@@ -23,30 +23,30 @@ jobs:
         run: cmake -S . -B build/release -A x64 -DCMAKE_BUILD_TYPE=Release
 
       - name: Build application
-        run: cmake --build build/release --config Release --target WinStartReview
+        run: cmake --build build/release --config Release --target WindowsSpeedMaster
 
       - name: Stage and package release files
         shell: pwsh
         run: |
           cmake --install build/release --config Release --prefix dist
-          Compress-Archive -Path dist/WinStartReview.exe -DestinationPath dist/WinStartReview-windows-x64.zip -CompressionLevel Optimal
-          $hash = (Get-FileHash dist/WinStartReview.exe -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$hash  WinStartReview.exe" | Set-Content -Encoding ascii dist/WinStartReview.exe.sha256
+          Compress-Archive -Path dist/WindowsSpeedMaster.exe -DestinationPath dist/WindowsSpeedMaster-windows-x64.zip -CompressionLevel Optimal
+          $hash = (Get-FileHash dist/WindowsSpeedMaster.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  WindowsSpeedMaster.exe" | Set-Content -Encoding ascii dist/WindowsSpeedMaster.exe.sha256
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: WinStartReview-windows-x64
+          name: WindowsSpeedMaster-windows-x64
           path: |
-            dist/WinStartReview.exe
-            dist/WinStartReview-windows-x64.zip
-            dist/WinStartReview.exe.sha256
+            dist/WindowsSpeedMaster.exe
+            dist/WindowsSpeedMaster-windows-x64.zip
+            dist/WindowsSpeedMaster.exe.sha256
           if-no-files-found: error
           retention-days: 14
 
   release:
     name: Publish GitHub Release
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     needs: build
     runs-on: windows-latest
     permissions:
@@ -55,18 +55,35 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
-          name: WinStartReview-windows-x64
+          name: WindowsSpeedMaster-windows-x64
           path: dist
 
       - name: Create release and attach files
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >-
-          gh release create "$env:GITHUB_REF_NAME"
-          dist/WinStartReview.exe
-          dist/WinStartReview-windows-x64.zip
-          dist/WinStartReview.exe.sha256
-          --verify-tag
-          --title "$env:GITHUB_REF_NAME"
-          --generate-notes
+        run: |
+          if ($env:GITHUB_REF_TYPE -eq "tag") {
+            $releaseTag = $env:GITHUB_REF_NAME
+            $releaseTitle = $releaseTag
+            $prerelease = $false
+          } else {
+            $shortSha = $env:GITHUB_SHA.Substring(0, 12)
+            $releaseTag = "main-$shortSha"
+            $releaseTitle = "Main build $shortSha"
+            $prerelease = $true
+          }
+
+          $ghArgs = @(
+            "release", "create", $releaseTag,
+            "dist/WindowsSpeedMaster.exe",
+            "dist/WindowsSpeedMaster-windows-x64.zip",
+            "dist/WindowsSpeedMaster.exe.sha256",
+            "--target", $env:GITHUB_SHA,
+            "--title", $releaseTitle,
+            "--generate-notes"
+          )
+          if ($env:GITHUB_REF_TYPE -eq "tag") { $ghArgs += "--verify-tag" }
+          if ($prerelease) { $ghArgs += "--prerelease" }
+          gh @ghArgs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

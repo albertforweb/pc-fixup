@@ -1,6 +1,6 @@
-# WinStartReview
+# Windows Speed Master
 
-WinStartReview is a native Windows desktop application for reviewing common automatic-start locations. It uses the Win32 API and Windows Task Scheduler COM interfaces; it has no UI framework or third-party runtime dependency.
+Windows Speed Master is a native Windows desktop application for reviewing common automatic-start locations. It uses the Win32 API and Windows Task Scheduler COM interfaces; it has no UI framework or third-party runtime dependency. The release executable is named `WindowsSpeedMaster.exe`.
 
 ## Current scope
 
@@ -28,13 +28,13 @@ With GNU Make installed, the Makefile provides shortcuts:
 
 ```sh
 make build    # Build Debug
-make release  # Build Release and stage dist/WinStartReview.exe
+make release  # Build Release and stage dist/WindowsSpeedMaster.exe
 make clean    # Remove build/ and dist/
 ```
 
 ## GitHub Actions release
 
-The Windows workflow builds x64 on pushes to `main`, pull requests targeting `main`, and manual runs. Pushing a version tag such as `v0.1.0` also creates a GitHub Release containing the `.exe`, a ZIP archive, and its SHA-256 checksum:
+The Windows workflow builds x64 on pushes to `main`, pull requests targeting `main`, and manual runs. Each push to `main` publishes a commit-specific prerelease. Pushing a version tag such as `v0.1.0` publishes a regular GitHub Release. Both include the `.exe`, a ZIP archive, and its SHA-256 checksum:
 
 ```sh
 git tag v0.1.0

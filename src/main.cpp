@@ -19,7 +19,7 @@
 #pragma comment(lib, "taskschd.lib")
 
 namespace {
-constexpr wchar_t kClassName[] = L"WinStartReviewWindow";
+constexpr wchar_t kClassName[] = L"WindowsSpeedMasterWindow";
 constexpr int kListId = 1001;
 constexpr int kTreeId = 1002;
 constexpr int kToolbarId = 1003;
@@ -370,11 +370,11 @@ void AddColumn(HWND list, int index, const wchar_t* title, int width) {
 }
 
 void Refresh(HWND hwnd) {
-    SetWindowTextW(hwnd, L"WinStartReview — scanning...");
+    SetWindowTextW(hwnd, L"Windows Speed Master — scanning...");
     ScanAll();
     PopulateTree();
     PopulateList();
-    SetWindowTextW(hwnd, (L"WinStartReview — " + std::to_wstring(g_entries.size()) + L" startup entries; review before changing").c_str());
+    SetWindowTextW(hwnd, (L"Windows Speed Master — " + std::to_wstring(g_entries.size()) + L" startup entries; review before changing").c_str());
 }
 
 void LayoutChildren(HWND hwnd) {
@@ -523,7 +523,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
     wc.hIcon = LoadIconW(nullptr, IDI_APPLICATION);
     wc.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
     if (!RegisterClassExW(&wc)) { CoUninitialize(); return 1; }
-    HWND hwnd = CreateWindowExW(0, kClassName, L"WinStartReview", WS_OVERLAPPEDWINDOW,
+    HWND hwnd = CreateWindowExW(0, kClassName, L"Windows Speed Master", WS_OVERLAPPEDWINDOW,
         CW_USEDEFAULT, CW_USEDEFAULT, 1160, 760, nullptr, CreateMainMenu(), instance, nullptr);
     if (!hwnd) { CoUninitialize(); return 1; }
     ACCEL refreshAccel{FVIRTKEY, VK_F5, static_cast<WORD>(kRefreshId)};

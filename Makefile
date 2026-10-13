@@ -10,11 +10,11 @@ configure:
 	$(CMAKE) -S . -B "$(BUILD_DIR)/debug" -DCMAKE_BUILD_TYPE=Debug
 
 build: configure
-	$(CMAKE) --build "$(BUILD_DIR)/debug" --config Debug --target WinStartReview
+	$(CMAKE) --build "$(BUILD_DIR)/debug" --config Debug --target WindowsSpeedMaster
 
 release:
 	$(CMAKE) -S . -B "$(BUILD_DIR)/release" -DCMAKE_BUILD_TYPE=Release
-	$(CMAKE) --build "$(BUILD_DIR)/release" --config Release --target WinStartReview
+	$(CMAKE) --build "$(BUILD_DIR)/release" --config Release --target WindowsSpeedMaster
 	$(CMAKE) --install "$(BUILD_DIR)/release" --config Release --prefix "$(DIST_DIR)"
 
 clean:
