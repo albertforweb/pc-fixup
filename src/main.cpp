@@ -133,7 +133,7 @@ void ScanServices() {
                 SERVICE_DELAYED_AUTO_START_INFO delayedInfo{};
                 DWORD delayedBytes = 0;
                 const bool delayed = QueryServiceConfig2W(service, SERVICE_CONFIG_DELAYED_AUTO_START_INFO,
-                    reinterpret_cast<BYTE*>(&delayedInfo), sizeof(delayedInfo), &delayedBytes) && delayedInfo.fDelayedAutoStart;
+                    reinterpret_cast<BYTE*>(&delayedInfo), sizeof(delayedInfo), &delayedBytes) && delayedInfo.fDelayedAutostart;
                 if (delayed) start += L" (delayed)";
                 start += services[i].ServiceStatusProcess.dwCurrentState == SERVICE_RUNNING ? L" / Running" : L" / Not running";
                 std::wstring command = config->lpBinaryPathName ? config->lpBinaryPathName : L"";
@@ -434,7 +434,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
         SendMessageW(g_toolbar, TB_LOADIMAGES, IDB_STD_SMALL_COLOR, reinterpret_cast<LPARAM>(HINST_COMMCTRL));
         const LRESULT refreshText = SendMessageW(g_toolbar, TB_ADDSTRINGW, 0, reinterpret_cast<LPARAM>(L"Refresh"));
         TBBUTTON refreshButton{};
-        refreshButton.iBitmap = STD_REFRESH;
+        refreshButton.iBitmap = I_IMAGENONE;
         refreshButton.idCommand = kRefreshId;
         refreshButton.fsState = TBSTATE_ENABLED;
         refreshButton.fsStyle = TBSTYLE_BUTTON | BTNS_AUTOSIZE | BTNS_SHOWTEXT;
