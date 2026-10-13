@@ -32,4 +32,13 @@ make release  # Build Release and stage dist/WinStartReview.exe
 make clean    # Remove build/ and dist/
 ```
 
+## GitHub Actions release
+
+The Windows workflow builds x64 on pushes to `main`, pull requests targeting `main`, and manual runs. Pushing a version tag such as `v0.1.0` also creates a GitHub Release containing the `.exe`, a ZIP archive, and its SHA-256 checksum:
+
+```sh
+git tag v0.1.0
+git push origin v0.1.0
+```
+
 The inventory is a starting point for a later reversible optimization workflow. That workflow should preserve original settings, show the exact change and its impact, and require the user to apply each recommendation. Dependency relationships should be presented as evidence and uncertainty, not treated as proof that an item is safe to disable.

@@ -1,10 +1,11 @@
 #include <windows.h>
 #include <commctrl.h>
+#include <algorithm>
+#include <iterator>
 #include <shellapi.h>
 #include <shlobj.h>
 #include <taskschd.h>
 #include <comdef.h>
-#include <commctrl.h>
 #include <string>
 #include <vector>
 #include <sstream>
@@ -28,7 +29,7 @@ constexpr int kRefreshId = 1101;
 constexpr int kExitId = 1102;
 constexpr int kInitialTreeWidth = 250;
 
-enum class Category : LPARAM { All, Services, RegistryRun, RegistryRunOnce, Tasks, UserStartup, CommonStartup };
+enum class Category : LPARAM { All, Services, RegistryRun, RegistryRunOnce, Tasks, UserStartup, CommonStartup, RegistryGroup, StartupGroup };
 
 struct Entry {
     std::wstring name;
@@ -49,6 +50,7 @@ int g_treeWidth = kInitialTreeWidth;
 int g_selectedCategory = static_cast<int>(Category::All);
 bool g_draggingSplitter = false;
 std::wstring g_selectedCategoryName = L"All startup items";
+HACCEL g_accelerators = nullptr;
 std::vector<Entry> g_entries;
 
 std::wstring ErrorText(DWORD error) {
@@ -128,7 +130,11 @@ void ScanServices() {
                 (config->dwStartType == SERVICE_AUTO_START || config->dwStartType == SERVICE_BOOT_START || config->dwStartType == SERVICE_SYSTEM_START)) {
                 std::wstring start = config->dwStartType == SERVICE_AUTO_START ? L"Automatic" :
                     config->dwStartType == SERVICE_BOOT_START ? L"Boot" : L"System";
-                if (config->fDelayedAutoStart) start += L" (delayed)";
+                SERVICE_DELAYED_AUTO_START_INFO delayedInfo{};
+                DWORD delayedBytes = 0;
+                const bool delayed = QueryServiceConfig2W(service, SERVICE_CONFIG_DELAYED_AUTO_START_INFO,
+                    reinterpret_cast<BYTE*>(&delayedInfo), sizeof(delayedInfo), &delayedBytes) && delayedInfo.fDelayedAutoStart;
+                if (delayed) start += L" (delayed)";
                 start += services[i].ServiceStatusProcess.dwCurrentState == SERVICE_RUNNING ? L" / Running" : L" / Not running";
                 std::wstring command = config->lpBinaryPathName ? config->lpBinaryPathName : L"";
                 if (config->lpDependencies && *config->lpDependencies) {
@@ -262,6 +268,7 @@ void ScanAll() {
 
 void SetCell(int row, int column, const std::wstring& value) {
     LVITEMW item{};
+    item.mask = LVIF_TEXT;
     item.iItem = row;
     item.iSubItem = column;
     item.pszText = const_cast<wchar_t*>(value.c_str());
@@ -285,8 +292,8 @@ bool IsStartupFolderCategory(Category category) {
 bool MatchesSelection(const Entry& entry) {
     const auto category = static_cast<Category>(g_selectedCategory);
     if (category == Category::All) return true;
-    if (g_selectedCategory == 7) return IsRegistryCategory(entry.category);
-    if (g_selectedCategory == 8) return IsStartupFolderCategory(entry.category);
+    if (category == Category::RegistryGroup) return IsRegistryCategory(entry.category);
+    if (category == Category::StartupGroup) return IsStartupFolderCategory(entry.category);
     return entry.category == category;
 }
 
@@ -308,11 +315,11 @@ void PopulateTree() {
     TreeView_DeleteAllItems(g_tree);
     const HTREEITEM all = InsertTreeNode(TVI_ROOT, CountedLabel(L"All startup items", g_entries.size()), static_cast<int>(Category::All));
     InsertTreeNode(TVI_ROOT, CountedLabel(L"Services", Count(Category::Services)), static_cast<int>(Category::Services));
-    const HTREEITEM registry = InsertTreeNode(TVI_ROOT, CountedLabel(L"Registry", Count(Category::RegistryRun) + Count(Category::RegistryRunOnce)), 7);
+    const HTREEITEM registry = InsertTreeNode(TVI_ROOT, CountedLabel(L"Registry", Count(Category::RegistryRun) + Count(Category::RegistryRunOnce)), static_cast<int>(Category::RegistryGroup));
     InsertTreeNode(registry, CountedLabel(L"Run", Count(Category::RegistryRun)), static_cast<int>(Category::RegistryRun));
     InsertTreeNode(registry, CountedLabel(L"RunOnce", Count(Category::RegistryRunOnce)), static_cast<int>(Category::RegistryRunOnce));
     InsertTreeNode(TVI_ROOT, CountedLabel(L"Scheduled tasks", Count(Category::Tasks)), static_cast<int>(Category::Tasks));
-    const HTREEITEM startup = InsertTreeNode(TVI_ROOT, CountedLabel(L"Startup folders", Count(Category::UserStartup) + Count(Category::CommonStartup)), 8);
+    const HTREEITEM startup = InsertTreeNode(TVI_ROOT, CountedLabel(L"Startup folders", Count(Category::UserStartup) + Count(Category::CommonStartup)), static_cast<int>(Category::StartupGroup));
     InsertTreeNode(startup, CountedLabel(L"Current user", Count(Category::UserStartup)), static_cast<int>(Category::UserStartup));
     InsertTreeNode(startup, CountedLabel(L"All users", Count(Category::CommonStartup)), static_cast<int>(Category::CommonStartup));
     TreeView_Expand(g_tree, registry, TVE_EXPAND);
@@ -380,12 +387,12 @@ void LayoutChildren(HWND hwnd) {
     if (g_toolbar) MoveWindow(g_toolbar, 0, 0, width, toolbarHeight, TRUE);
     if (g_status) MoveWindow(g_status, 0, height - statusHeight, width, statusHeight, TRUE);
     const int contentTop = toolbarHeight;
-    const int contentHeight = max(0, height - toolbarHeight - statusHeight);
-    const int splitX = min(max(g_treeWidth, 150), max(150, width - 250));
+    const int contentHeight = std::max(0, height - toolbarHeight - statusHeight);
+    const int splitX = std::min(std::max(g_treeWidth, 150), std::max(150, width - 250));
     g_treeWidth = splitX;
     if (g_tree) MoveWindow(g_tree, 0, contentTop, splitX, contentHeight, TRUE);
     if (g_splitter) MoveWindow(g_splitter, splitX, contentTop, 5, contentHeight, TRUE);
-    if (g_list) MoveWindow(g_list, splitX + 5, contentTop, max(0, width - splitX - 5), contentHeight, TRUE);
+    if (g_list) MoveWindow(g_list, splitX + 5, contentTop, std::max(0, width - splitX - 5), contentHeight, TRUE);
     if (g_status) {
         int parts[] = {width / 2, width * 3 / 4, -1};
         SendMessageW(g_status, SB_SETPARTS, 3, reinterpret_cast<LPARAM>(parts));
@@ -421,12 +428,29 @@ HMENU CreateMainMenu() {
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
     switch (message) {
     case WM_CREATE: {
-        CreateWindowExW(0, L"STATIC", L"Automatic start inventory. Unknown entries are marked Review; this app does not change system settings.",
-            WS_CHILD | WS_VISIBLE, 12, 12, 1100, 24, hwnd, nullptr, nullptr, nullptr);
-        CreateWindowExW(0, L"BUTTON", L"Refresh", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-            12, 42, 90, 28, hwnd, reinterpret_cast<HMENU>(kRefreshId), nullptr, nullptr);
+        g_toolbar = CreateWindowExW(0, TOOLBARCLASSNAMEW, nullptr, WS_CHILD | WS_VISIBLE | TBSTYLE_FLAT | TBSTYLE_TOOLTIPS | CCS_TOP | CCS_NODIVIDER,
+            0, 0, 0, 0, hwnd, reinterpret_cast<HMENU>(static_cast<INT_PTR>(kToolbarId)), GetModuleHandleW(nullptr), nullptr);
+        SendMessageW(g_toolbar, TB_BUTTONSTRUCTSIZE, sizeof(TBBUTTON), 0);
+        SendMessageW(g_toolbar, TB_LOADIMAGES, IDB_STD_SMALL_COLOR, reinterpret_cast<LPARAM>(HINST_COMMCTRL));
+        const LRESULT refreshText = SendMessageW(g_toolbar, TB_ADDSTRINGW, 0, reinterpret_cast<LPARAM>(L"Refresh"));
+        TBBUTTON refreshButton{};
+        refreshButton.iBitmap = STD_REFRESH;
+        refreshButton.idCommand = kRefreshId;
+        refreshButton.fsState = TBSTATE_ENABLED;
+        refreshButton.fsStyle = TBSTYLE_BUTTON | BTNS_AUTOSIZE | BTNS_SHOWTEXT;
+        refreshButton.iString = static_cast<INT_PTR>(refreshText);
+        SendMessageW(g_toolbar, TB_ADDBUTTONS, 1, reinterpret_cast<LPARAM>(&refreshButton));
+
+        g_status = CreateWindowExW(0, STATUSCLASSNAMEW, nullptr, WS_CHILD | WS_VISIBLE | SBARS_SIZEGRIP,
+            0, 0, 0, 0, hwnd, reinterpret_cast<HMENU>(static_cast<INT_PTR>(kStatusId)), GetModuleHandleW(nullptr), nullptr);
+        g_tree = CreateWindowExW(WS_EX_CLIENTEDGE, WC_TREEVIEWW, nullptr,
+            WS_CHILD | WS_VISIBLE | TVS_HASBUTTONS | TVS_HASLINES | TVS_LINESATROOT | TVS_SHOWSELALWAYS,
+            0, 0, 0, 0, hwnd, reinterpret_cast<HMENU>(static_cast<INT_PTR>(kTreeId)), GetModuleHandleW(nullptr), nullptr);
+        g_splitter = CreateWindowExW(0, L"STATIC", nullptr, WS_CHILD | WS_VISIBLE | SS_NOTIFY,
+            0, 0, 5, 0, hwnd, reinterpret_cast<HMENU>(static_cast<INT_PTR>(kSplitterId)), GetModuleHandleW(nullptr), nullptr);
+        SetWindowSubclass(g_splitter, SplitterProc, 1, 0);
         g_list = CreateWindowExW(WS_EX_CLIENTEDGE, WC_LISTVIEWW, L"", WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS,
-            12, 82, 1100, 620, hwnd, reinterpret_cast<HMENU>(kListId), nullptr, nullptr);
+            0, 0, 0, 0, hwnd, reinterpret_cast<HMENU>(static_cast<INT_PTR>(kListId)), GetModuleHandleW(nullptr), nullptr);
         ListView_SetExtendedListViewStyle(g_list, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_DOUBLEBUFFER);
         AddColumn(g_list, 0, L"Name", 210);
         AddColumn(g_list, 1, L"Source", 130);
@@ -434,21 +458,49 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
         AddColumn(g_list, 3, L"Location", 260);
         AddColumn(g_list, 4, L"Startup command / trigger", 300);
         AddColumn(g_list, 5, L"Assessment", 330);
+        LayoutChildren(hwnd);
         Refresh(hwnd);
         return 0;
     }
     case WM_COMMAND:
         if (LOWORD(wParam) == kRefreshId) Refresh(hwnd);
+        else if (LOWORD(wParam) == kExitId) DestroyWindow(hwnd);
         return 0;
-    case WM_SIZE: {
-        const int width = LOWORD(lParam), height = HIWORD(lParam);
-        HWND label = FindWindowExW(hwnd, nullptr, L"STATIC", nullptr);
-        if (label) MoveWindow(label, 12, 12, width - 24, 24, TRUE);
-        HWND button = GetDlgItem(hwnd, kRefreshId);
-        if (button) MoveWindow(button, 12, 42, 90, 28, TRUE);
-        if (g_list) MoveWindow(g_list, 12, 82, width - 24, height - 94, TRUE);
+    case WM_NOTIFY: {
+        const auto* header = reinterpret_cast<NMHDR*>(lParam);
+        if (header->hwndFrom == g_tree && header->code == TVN_SELCHANGEDW) {
+            const auto* change = reinterpret_cast<NMTREEVIEWW*>(lParam);
+            g_selectedCategory = static_cast<int>(change->itemNew.lParam);
+            wchar_t label[256]{};
+            TVITEMW selected{};
+            selected.mask = TVIF_TEXT;
+            selected.hItem = change->itemNew.hItem;
+            selected.pszText = label;
+            selected.cchTextMax = static_cast<int>(std::size(label));
+            if (TreeView_GetItem(g_tree, &selected)) g_selectedCategoryName = label;
+            PopulateList();
+            return 0;
+        }
         return 0;
     }
+    case WM_SIZE:
+        LayoutChildren(hwnd);
+        return 0;
+    case WM_MOUSEMOVE:
+        if (g_draggingSplitter) {
+            g_treeWidth = static_cast<int>(static_cast<short>(LOWORD(lParam)));
+            LayoutChildren(hwnd);
+        }
+        return 0;
+    case WM_LBUTTONUP:
+        if (g_draggingSplitter) {
+            g_draggingSplitter = false;
+            ReleaseCapture();
+        }
+        return 0;
+    case WM_KEYDOWN:
+        if (wParam == VK_F5) Refresh(hwnd);
+        return 0;
     case WM_DESTROY: PostQuitMessage(0); return 0;
     }
     return DefWindowProcW(hwnd, message, wParam, lParam);
@@ -456,7 +508,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
 }
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
-    INITCOMMONCONTROLSEX controls{sizeof(controls), ICC_LISTVIEW_CLASSES};
+    INITCOMMONCONTROLSEX controls{sizeof(controls), ICC_LISTVIEW_CLASSES | ICC_TREEVIEW_CLASSES | ICC_BAR_CLASSES | ICC_STANDARD_CLASSES};
     InitCommonControlsEx(&controls);
     const HRESULT comResult = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
     if (FAILED(comResult)) return 1;
@@ -472,15 +524,19 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
     wc.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
     if (!RegisterClassExW(&wc)) { CoUninitialize(); return 1; }
     HWND hwnd = CreateWindowExW(0, kClassName, L"WinStartReview", WS_OVERLAPPEDWINDOW,
-        CW_USEDEFAULT, CW_USEDEFAULT, 1160, 760, nullptr, nullptr, instance, nullptr);
+        CW_USEDEFAULT, CW_USEDEFAULT, 1160, 760, nullptr, CreateMainMenu(), instance, nullptr);
     if (!hwnd) { CoUninitialize(); return 1; }
+    ACCEL refreshAccel{FVIRTKEY, VK_F5, static_cast<WORD>(kRefreshId)};
+    g_accelerators = CreateAcceleratorTableW(&refreshAccel, 1);
     ShowWindow(hwnd, show);
     UpdateWindow(hwnd);
     MSG msg{};
     while (GetMessageW(&msg, nullptr, 0, 0) > 0) {
+        if (g_accelerators && TranslateAcceleratorW(hwnd, g_accelerators, &msg)) continue;
         TranslateMessage(&msg);
         DispatchMessageW(&msg);
     }
+    if (g_accelerators) DestroyAcceleratorTable(g_accelerators);
     CoUninitialize();
     return static_cast<int>(msg.wParam);
 }
