@@ -1,0 +1,22 @@
+cmake -S . -B "build/debug" -DCMAKE_BUILD_TYPE=Debug
+-- Selecting Windows SDK version 10.0.26100.0 to target Windows 10.0.26200.
+-- Configuring done (0.0s)
+-- Generating done (0.1s)
+-- Build files have been written to: C:/git/pc-fixup/build/debug
+cmake --build "build/debug" --config Debug --target WinStartReview
+MSBuild version 18.0.5+e22287bf1 for .NET Framework
+
+  1>Checking Build System
+  Building Custom Rule C:/git/pc-fixup/CMakeLists.txt
+  main.cpp
+C:\git\pc-fixup\src\main.cpp(131,29): error C2039: 'fDelayedAutoStart': is not a member of '_QUERY_SERVICE_CONFIGW' [C:\git\pc-fixup\build\debug\WinStartReview.vcxproj]
+      C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um\winsvc.h(827,16):
+      see declaration of '_QUERY_SERVICE_CONFIGW'
+  
+C:\git\pc-fixup\src\main.cpp(383,31): error C3861: 'max': identifier not found [C:\git\pc-fixup\build\debug\WinStartReview.vcxproj]
+C:\git\pc-fixup\src\main.cpp(384,28): error C3861: 'max': identifier not found [C:\git\pc-fixup\build\debug\WinStartReview.vcxproj]
+C:\git\pc-fixup\src\main.cpp(384,51): error C3861: 'max': identifier not found [C:\git\pc-fixup\build\debug\WinStartReview.vcxproj]
+C:\git\pc-fixup\src\main.cpp(384,24): error C3861: 'min': identifier not found [C:\git\pc-fixup\build\debug\WinStartReview.vcxproj]
+C:\git\pc-fixup\src\main.cpp(388,60): error C3861: 'max': identifier not found [C:\git\pc-fixup\build\debug\WinStartReview.vcxproj]
+C:\git\pc-fixup\src\main.cpp(427,35): warning C4312: 'reinterpret_cast': conversion from 'const int' to 'HMENU' of greater size [C:\git\pc-fixup\build\debug\WinStartReview.vcxproj]
+C:\git\pc-fixup\src\main.cpp(429,38): warning C4312: 'reinterpret_cast': conversion from 'const int' to 'HMENU' of greater size [C:\git\pc-fixup\build\debug\WinStartReview.vcxproj]
